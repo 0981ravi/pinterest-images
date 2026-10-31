@@ -1,0 +1,50 @@
+name: Drive to GitHub (History images)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download History folder from Google Drive
+        run: |
+          pip install --quiet gdown
+          mkdir -p dl
+          gdown --folder "https://drive.google.com/drive/folders/1StyLzfw4ZDy-8_Yse25hcsjgtrBJyFK_" -O dl --remaining-ok
+
+      - name: Rename into clean paths
+        run: |
+          python3 - <<'PY'
+          import os, re, shutil
+          out = "history/ancient"
+          os.makedirs(out, exist_ok=True)
+          for root, _, files in os.walk("dl"):
+              part = os.path.basename(root)
+              if not part.isdigit():
+                  continue
+              for f in files:
+                  if not f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+                      continue
+                  stem, ext = os.path.splitext(f)
+                  stem = re.sub(r"[^0-9a-zA-Z]+", "-", stem).strip("-")
+                  dest = os.path.join(out, f"part-{int(part):02d}")
+                  os.makedirs(dest, exist_ok=True)
+                  shutil.copy(os.path.join(root, f), os.path.join(dest, stem + ext.lower()))
+          PY
+          rm -rf dl
+          find history -type f | sort > history/files.txt
+          wc -l history/files.txt
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add history
+          git commit -m "Add Ancient Indian History images from Drive" || echo "nothing to commit"
+          git push
