@@ -1,0 +1,42 @@
+name: Geography images from ImageKit (remove History)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove old Ancient History images
+        run: |
+          git rm -r -q --ignore-unmatch history history-list.tsv
+
+      - name: Download Physical Geography images from ImageKit
+        run: |
+          base="https://ik.imagekit.io/2zysccqqh/1.%20Geography/Physical%20Geography"
+          fail=0
+          for spec in 1:6 2:9 3:11 4:10 5:8 6:8 7:8 8:7 9:9 10:4; do
+            f=${spec%%:*}; n=${spec##*:}
+            dir=$(printf "geography/physical/part-%02d" "$f")
+            mkdir -p "$dir"
+            for k in $(seq 1 "$n"); do
+              curl -sSfL --retry 3 -o "$dir/$k.png" "$base/$f/$k.png" || { echo "FAILED: $f/$k"; fail=1; }
+              file "$dir/$k.png" | grep -qi 'PNG' || { echo "NOT PNG: $f/$k"; fail=1; }
+            done
+          done
+          find geography -type f | sort -V > geography/files.txt
+          echo "Downloaded: $(wc -l < geography/files.txt)"
+          exit $fail
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A geography
+          git commit -m "Remove Ancient History images, add Physical Geography images from ImageKit" || echo "nothing to commit"
+          git push
